@@ -1,0 +1,94 @@
+# Shared git defaults for all my machines.
+#
+# This file is pulled in by an [include] at the TOP of ~/.gitconfig, which is
+# deliberate: git applies config in the order it reads it and the last value
+# wins, so anything set in ~/.gitconfig BELOW the include overrides these
+# defaults. Machine-local things (user.name, user.email, signing keys, work
+# overrides) therefore live in ~/.gitconfig and are never committed here.
+#
+# Needs git >= 2.38. install.sh upgrades git when it finds an older one,
+# because several of these are not merely ignored on old versions:
+# merge.conflictStyle = zdiff3 makes git 2.34 abort every merge with
+# "fatal: unknown style 'zdiff3'".
+
+[push]
+	# The upstream fix. Without it, the first push of a new branch dies with
+	#   fatal: The current branch X has no upstream branch
+	# and makes you retype `git push --set-upstream origin X`. With it, git
+	# creates the remote branch and records it as upstream in one go, so
+	# `git pull` / `git status` work on that branch immediately after.
+	# (git 2.37+; silently ignored before that.)
+	autoSetupRemote = true
+
+	# Push annotated tags that point at commits being pushed, so cutting a
+	# release does not need a separate `git push --tags`.
+	followTags = true
+
+[pull]
+	# Never let a plain `git pull` invent a merge commit because the branch
+	# diverged. It errors instead, and you choose: rebase, merge, or reset.
+	ff = only
+
+[rebase]
+	# Stash a dirty worktree before rebasing and restore it after, instead of
+	# refusing to start.
+	autoStash = true
+
+	# Honour `git commit --fixup=<sha>` markers when rebasing, so fixups land
+	# on the commit they name.
+	autoSquash = true
+
+	# Rebasing a stack of branches moves the other branch tips along with it
+	# instead of leaving them pointing at the old, pre-rebase commits.
+	# (git 2.38+)
+	updateRefs = true
+
+[merge]
+	# Conflict markers include the common ancestor, not just the two sides.
+	# Seeing what each side actually changed is the difference between
+	# resolving a conflict and guessing at it. (git 2.35+)
+	conflictStyle = zdiff3
+
+[rerere]
+	# REuse REcorded REsolution: remember how a conflict was resolved and
+	# replay it when the identical conflict reappears. Pays for itself on any
+	# long rebase, where the same conflict hits once per replayed commit.
+	enabled = true
+	autoUpdate = true
+
+[diff]
+	# Histogram gives noticeably more readable diffs than the default Myers
+	# algorithm, especially when a block moves or a function is reindented.
+	algorithm = histogram
+
+	# Colour moved lines differently from genuinely added/removed ones, so a
+	# big refactor diff shows what actually changed.
+	colorMoved = zebra
+
+	# Show a/ and b/ prefixes as i/ w/ c/ o/ to say which side is the index,
+	# worktree, commit or other. Handy once you read a lot of diffs.
+	mnemonicPrefix = true
+
+[branch]
+	# `git branch` lists most recently committed first, so the branch you
+	# actually want is at the top instead of buried alphabetically.
+	sort = -committerdate
+
+[help]
+	# A mistyped command prompts before running the correction rather than
+	# silently executing something you did not ask for. (git 2.38+)
+	autocorrect = prompt
+
+[core]
+	# Store LF in the repo, converting CRLF on the way in. Keeps line endings
+	# sane if a repo is ever touched from Windows.
+	autocrlf = input
+
+[log]
+	# Unambiguous, sortable timestamps instead of locale-dependent ones.
+	date = iso
+
+[status]
+	# List files inside untracked directories rather than just the directory,
+	# so `git status` never hides a new file behind "untracked dir/".
+	showUntrackedFiles = all

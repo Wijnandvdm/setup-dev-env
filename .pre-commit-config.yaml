@@ -1,0 +1,13 @@
+# Run against everything:  pre-commit run --all-files
+# Install the git hook:    pre-commit install
+#
+# shellcheck-py ships shellcheck as a Python wheel, so this needs no docker
+# daemon (unlike koalaman/shellcheck-precommit) and works the same in CI.
+repos:
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1-1
+    hooks:
+      - id: shellcheck
+        # -x lets shellcheck follow `source`d files (lib/, versions.conf)
+        # instead of warning SC1091 that it cannot see them.
+        args: [-x]

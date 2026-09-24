@@ -1,0 +1,26 @@
+# shellcheck shell=bash
+#
+# My shell aliases and helpers - shared by bash and zsh.
+#
+# Keep this file portable: aliases and POSIX-ish functions only. Anything
+# shell-specific (shopt/setopt, PS1/PROMPT, completion) or GNU-only
+# (ls --color, which BSD ls on macOS does not have) belongs in a per-shell
+# file instead, not here.
+#
+# It is *sourced from* your ~/.bashrc / ~/.zshrc rather than replacing them,
+# so the system defaults stay intact. Wire it up with: ./install.sh dotfiles
+
+# --- navigation ------------------------------------------------------------
+alias cd2='cd ../..'
+alias cd3='cd ../../..'
+alias cd4='cd ../../../..'
+
+# --- git (read-only; commits stay manual) ----------------------------------
+alias gs='git status -sb'
+alias gd='git diff'
+alias gl='git log --oneline --graph --decorate -20'
+
+# --- docker ----------------------------------------------------------------
+alias dps='docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
+alias dc='docker compose'
+
