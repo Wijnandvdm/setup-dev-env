@@ -1,10 +1,14 @@
 # Shared git defaults for all my machines.
 #
-# This file is pulled in by an [include] at the TOP of ~/.gitconfig, which is
-# deliberate: git applies config in the order it reads it and the last value
-# wins, so anything set in ~/.gitconfig BELOW the include overrides these
-# defaults. Machine-local things (user.name, user.email, signing keys, work
-# overrides) therefore live in ~/.gitconfig and are never committed here.
+# `./install.sh git` COPIES this into the TOP of ~/.gitconfig between marker
+# comments, rather than making it an [include] of this path - so the machine
+# keeps working after this repo is deleted. Re-running replaces the block in
+# place; anything outside the markers is left alone.
+#
+# Top placement is deliberate: git applies config in the order it reads it and
+# the last value wins, so anything in ~/.gitconfig BELOW the block overrides
+# these defaults. Machine-local things (user.name, user.email, signing keys,
+# work overrides) therefore live down there and are never committed here.
 #
 # Needs git >= 2.38. install.sh upgrades git when it finds an older one,
 # because several of these are not merely ignored on old versions:

@@ -11,3 +11,9 @@ repos:
         # -x lets shellcheck follow `source`d files (lib/, versions.conf)
         # instead of warning SC1091 that it cannot see them.
         args: [-x]
+        # The hook defaults to types: [shell], which pre-commit decides from
+        # the extension or shebang. dotfiles/shellrc and versions.conf have
+        # neither - they are shell fragments meant to be sourced - so they
+        # were being skipped silently. Match on path instead.
+        types: [file]
+        files: '(\.sh$|^dotfiles/shellrc$|^versions\.conf$)'

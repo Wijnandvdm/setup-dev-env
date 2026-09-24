@@ -7,15 +7,20 @@
 # (ls --color, which BSD ls on macOS does not have) belongs in a per-shell
 # file instead, not here.
 #
-# It is *sourced from* your ~/.bashrc / ~/.zshrc rather than replacing them,
-# so the system defaults stay intact. Wire it up with: ./install.sh dotfiles
+# `./install.sh dotfiles` COPIES this into ~/.bashrc / ~/.zshrc between marker
+# comments, rather than making them source this path - so the machine keeps
+# working after this repo is deleted. Re-running replaces the block in place,
+# so edit here and re-run; anything outside the markers is left alone.
 
 # --- navigation ------------------------------------------------------------
 alias cd2='cd ../..'
 alias cd3='cd ../../..'
 alias cd4='cd ../../../..'
 
-# --- git (read-only; commits stay manual) ----------------------------------
+# --- git -------------------------------------------------------------------
+# -sb: short status plus the branch/upstream line, so you can see at a glance
+# whether the branch is tracking anything and how far ahead/behind it is.
+alias gs='git status -sb'
 alias ga.='git add .'
 alias gam='git commit -am'
 alias gp='git push'
@@ -25,4 +30,37 @@ alias gl='git log --oneline --graph --decorate -20'
 # --- docker ----------------------------------------------------------------
 alias dps='docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
 alias dc='docker compose'
+
+# --- reload ----------------------------------------------------------------
+# `src` re-sources the rc file of the shell you are actually in: ~/.bashrc
+# under bash (Ubuntu), ~/.zshrc under zsh (macOS). One command, both machines.
+#
+# A function rather than an alias, because the choice has to happen when you
+# run it, not when this file is read. It tests ZSH_VERSION/BASH_VERSION rather
+# than $SHELL, because $SHELL names your *login* shell - it still says
+# /bin/bash while you are sitting in a zsh you started by hand.
+#
+# Only the current shell's rc is sourced, never both: ~/.bashrc run under zsh
+# spits out errors on shopt and bash-only prompt escapes, and vice versa.
+#
+# A missing rc is not an error - it just does nothing and returns 0, so `src`
+# never fails a command chain on a machine that has no rc file yet.
+#
+# Re-running is safe: this block only defines aliases and functions, so
+# sourcing it again simply redefines them. (True of what is in here; an rc
+# that *appends* to PATH will duplicate entries each time it is re-sourced.)
+src() {
+	local rc=""
+	if [ -n "${ZSH_VERSION:-}" ]; then
+		rc="$HOME/.zshrc"
+	elif [ -n "${BASH_VERSION:-}" ]; then
+		rc="$HOME/.bashrc"
+	fi
+
+	if [ -n "$rc" ] && [ -f "$rc" ]; then
+		# shellcheck disable=SC1090  # path resolved at runtime
+		. "$rc" && echo "reloaded ${rc##*/}"
+	fi
+	return 0
+}
 

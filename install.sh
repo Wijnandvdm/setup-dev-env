@@ -4,18 +4,37 @@
 #
 #   ./install.sh                 # do everything
 #   ./install.sh uv pre-commit   # only the named targets
-#   ./install.sh dotfiles        # wire dotfiles/shellrc into your shell rc
+#   ./install.sh dotfiles        # copy dotfiles/shellrc into your shell rc
+#   source ./install.sh dotfiles # ...and make the aliases live in this shell
 #   ./install.sh --list          # show what is present and what is missing
 #
 # Targets: git, uv, pre-commit, docker, dotfiles
 # Minimum versions are set in versions.conf.
 #
 # Every step is idempotent: anything already in place is skipped, so
-# re-running this on an existing machine is safe.
+# re-running this on an existing machine is safe. Config is copied into your
+# home directory, not sourced from here, so this repo can be deleted after.
 
-set -euo pipefail
+# Executed (./install.sh) or sourced (source ./install.sh)?
+#
+# A script cannot change the shell that launched it - it runs in a child
+# process that exits - so `./install.sh dotfiles` can never make aliases live
+# in your current terminal. Sourcing runs everything in THIS shell instead, so
+# the rc reload at the end of the dotfiles step actually takes effect.
+#
+# Strict mode is therefore only switched on when executed: turning on
+# `set -e` in someone's interactive shell would close their terminal on the
+# next failed command.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  _SOURCED=false
+  set -euo pipefail
+else
+  _SOURCED=true
+fi
 
-_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# BASH_SOURCE, not $0: when sourced, $0 is the calling shell, not this file.
+_self="${BASH_SOURCE[0]}"
+_here="$(cd "$(dirname "$_self")" && pwd)"
 # shellcheck source=lib/detect-machine.sh
 source "$_here/lib/detect-machine.sh"
 
@@ -110,36 +129,17 @@ _git_profile() {
   _gitconfig_identity
 }
 
-# Put the [include] at the TOP of ~/.gitconfig. Git applies config in read
-# order and the last value wins, so anything already in ~/.gitconfig ends up
-# below the include and keeps overriding the shared defaults.
+# The block goes at the TOP of ~/.gitconfig: git applies config in read order
+# and the last value wins, so your own settings stay below it and keep
+# overriding these shared defaults.
 _gitconfig_include() {
   local src="$_here/dotfiles/gitconfig"
   local rc="$HOME/.gitconfig"
 
   [ -f "$src" ] || { warn "not found: $src"; return 1; }
 
-  if [ -f "$rc" ] && grep -qF 'dotfiles/gitconfig' "$rc"; then
-    skip "$rc already includes dotfiles/gitconfig"
-    return 0
-  fi
-
-  step "Including dotfiles/gitconfig from $rc"
-  local tmp
-  tmp="$(mktemp)"
-  {
-    printf '# added by setup-dev-env: shared defaults.\n'
-    printf '# Keep machine-local settings BELOW this include so they win.\n'
-    printf '[include]\n\tpath = %s\n' "$src"
-  } >"$tmp"
-  if [ -f "$rc" ]; then
-    printf '\n' >>"$tmp"
-    cat "$rc" >>"$tmp"
-    cp "$rc" "$rc.setupbak"
-    ok "backed up your previous config to $rc.setupbak"
-  fi
-  mv "$tmp" "$rc"
-  ok "included - your existing settings were kept and still take precedence"
+  step "Copying dotfiles/gitconfig into $rc"
+  _sync_block "$src" "$rc" "dotfiles/gitconfig" top
 }
 
 # Ask for identity only when it is missing, and only when there is a terminal
@@ -356,35 +356,145 @@ install_dotfiles() {
   local src="$_here/dotfiles/shellrc"
   [ -f "$src" ] || { warn "not found: $src"; return 1; }
 
-  local rc changed=0
+  step "Copying dotfiles/shellrc into your shell rc files"
+  local rc
   while IFS= read -r rc; do
     [ -n "$rc" ] || continue
-
-    # Migrate the line written before shellrc was renamed from bashrc.
-    if [ -f "$rc" ] && grep -qF 'dotfiles/bashrc' "$rc"; then
-      sed -i.setupbak 's#dotfiles/bashrc#dotfiles/shellrc#g' "$rc"
-      rm -f "$rc.setupbak"
-      ok "updated the old dotfiles/bashrc reference in $rc"
-      continue
-    fi
-
-    if [ -f "$rc" ] && grep -qF 'dotfiles/shellrc' "$rc"; then
-      skip "$rc already sources dotfiles/shellrc"
-      continue
-    fi
-
-    step "Sourcing dotfiles/shellrc from $rc"
-    {
-      printf '\n# added by setup-dev-env\n'
-      printf '[ -f "%s" ] && . "%s"\n' "$src" "$src"
-    } >>"$rc"
-    ok "wired into $rc"
-    changed=1
+    _sync_block "$src" "$rc" "dotfiles/shellrc" bottom
   done < <(_rc_targets)
 
-  if [ "$changed" -eq 1 ]; then
+  _reload_shell_rc
+  return 0
+}
+
+# The rc file the shell you are sitting in actually reads.
+_current_shell_rc() {
+  case "${SHELL##*/}" in
+    zsh)  printf '%s/.zshrc'  "$HOME" ;;
+    bash) printf '%s/.bashrc' "$HOME" ;;
+    *)    printf '' ;;
+  esac
+}
+
+# Make the aliases live now if we can, otherwise say exactly how.
+_reload_shell_rc() {
+  local rc
+  rc="$(_current_shell_rc)"
+
+  if [ -z "$rc" ] || [ ! -f "$rc" ]; then
     ok "open a new shell to pick up the aliases"
+    return 0
   fi
+
+  if [ "$_SOURCED" != true ]; then
+    # We are a child process; anything we source dies with us.
+    if [ "$_BLOCK_CREATED" = true ]; then
+      # `src` ships inside the block we just wrote, so it does not exist in
+      # the caller's shell yet. Long form this once.
+      ok "run:  source $rc"
+      ok "  from then on 'src' does it for you"
+    else
+      ok "run 'src' to pick up the changes in this shell"
+    fi
+    return 0
+  fi
+
+  # shellcheck disable=SC1090  # path is only known at runtime
+  . "$rc"
+  ok "reloaded $rc - aliases are live in this shell"
+}
+
+# ---------------------------------------------------------------------------
+# managed blocks
+#
+# Config is COPIED into ~/.bashrc, ~/.zshrc and ~/.gitconfig rather than
+# sourced/included from this repo, so the repo can be deleted afterwards and
+# nothing breaks. The copy is fenced by marker comments:
+#
+#   # >>> setup-dev-env: dotfiles/shellrc >>>
+#   ...contents...
+#   # <<< setup-dev-env: dotfiles/shellrc <<<
+#
+# Re-running replaces what is between the markers, so editing a file here and
+# re-running updates the machine without ever duplicating the block. Anything
+# you write outside the markers is left untouched.
+# ---------------------------------------------------------------------------
+
+# Set when a block is written into a file that did not have one yet. That
+# means `src` is not defined in the caller's shell either, so the advice at
+# the end has to be the long `source <rc>` form exactly once.
+_BLOCK_CREATED=false
+
+_block_begin() { printf '# >>> setup-dev-env: %s >>>' "$1"; }
+_block_end()   { printf '# <<< setup-dev-env: %s <<<' "$1"; }
+
+# Strip the `source`/`[include]` pointers written by earlier versions of this
+# script, so upgrading does not leave a dead reference to a deleted repo.
+_strip_legacy_pointers() {
+  awk '
+    /^# added by setup-dev-env/                          { next }
+    /^# Keep machine-local settings BELOW this include/  { next }
+    /^\[include\]$/                                      { held = 1; next }
+    /setup-dev-env\/dotfiles\//                          { held = 0; next }
+    { if (held) { print "[include]"; held = 0 } print }
+    END { if (held) print "[include]" }
+  ' "$1"
+}
+
+# _sync_block <src> <dest> <name> [top|bottom]
+#
+# top    - block goes first, so the user's own settings sit below it and win
+#          (git applies config in read order, last value wins)
+# bottom - block goes last (default; fine for shell aliases)
+_sync_block() {
+  local src="$1" dest="$2" name="$3" pos="${4:-bottom}"
+  local begin end before after
+  begin="$(_block_begin "$name")"
+  end="$(_block_end "$name")"
+
+  before="$(mktemp)"; after="$(mktemp)"
+  if [ -f "$dest" ]; then cp "$dest" "$before"; else : >"$before"; fi
+
+  if grep -qF "$begin" "$before"; then
+    # Replace whatever is currently between the markers.
+    awk -v b="$begin" -v e="$end" -v f="$src" '
+      index($0, b) == 1 {
+        print
+        while ((getline line < f) > 0) print line
+        close(f)
+        inblock = 1
+        next
+      }
+      inblock && index($0, e) == 1 { inblock = 0; print; next }
+      inblock { next }
+      { print }
+    ' "$before" >"$after"
+  else
+    _BLOCK_CREATED=true
+    local body
+    body="$(mktemp)"
+    _strip_legacy_pointers "$before" >"$body"
+    {
+      if [ "$pos" = top ]; then
+        printf '%s\n' "$begin"; cat "$src"; printf '%s\n\n' "$end"
+        cat "$body"
+      else
+        cat "$body"
+        printf '\n%s\n' "$begin"; cat "$src"; printf '%s\n' "$end"
+      fi
+    } >"$after"
+    rm -f "$body"
+  fi
+
+  if cmp -s "$before" "$after"; then
+    skip "$dest already has an up-to-date $name block"
+    rm -f "$before" "$after"
+    return 0
+  fi
+
+  mv "$after" "$dest"
+  rm -f "$before"
+  ok "wrote the $name block into $dest"
   return 0
 }
 
@@ -410,6 +520,13 @@ _ensure_local_bin_on_path() {
   fi
 }
 
+# Print the header comment block as the usage text: skip the shebang, then
+# every comment line until the first line that is not one. Deriving the range
+# beats hardcoding line numbers, which go stale the moment the header changes.
+_usage() {
+  awk 'NR < 3 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$_self"
+}
+
 _list() {
   echo "Machine: ${DEV_PRETTY_NAME:-$DEV_DISTRO} ($DEV_ARCH, $DEV_PKG)"
   echo
@@ -432,17 +549,21 @@ _list() {
     fi
   done
 
-  local linked=() rc
+  local applied=() rc
   while IFS= read -r rc; do
-    if [ -f "$rc" ] && grep -qF 'dotfiles/shellrc' "$rc"; then
-      linked+=("${rc/#$HOME/\~}")
+    if [ -f "$rc" ] && grep -qF "$(_block_begin dotfiles/shellrc)" "$rc"; then
+      applied+=("${rc/#$HOME/\~}")
     fi
   done < <(_rc_targets)
+  local gc="$HOME/.gitconfig"
+  if [ -f "$gc" ] && grep -qF "$(_block_begin dotfiles/gitconfig)" "$gc"; then
+    applied+=("${gc/#$HOME/\~}")
+  fi
 
-  if [ ${#linked[@]} -gt 0 ]; then
-    printf '  %-12s %slinked%s     %s\n' "dotfiles" "$_green" "$_off" "${linked[*]}"
+  if [ ${#applied[@]} -gt 0 ]; then
+    printf '  %-12s %sapplied%s   %s\n' "dotfiles" "$_green" "$_off" "${applied[*]}"
   else
-    printf '  %-12s %snot linked%s\n' "dotfiles" "$_yellow" "$_off"
+    printf '  %-12s %snot applied%s\n' "dotfiles" "$_yellow" "$_off"
   fi
 }
 
@@ -460,7 +581,7 @@ install_one() {
 main() {
   case "${1:-}" in
     --list|-l) _list; return 0 ;;
-    -h|--help) sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'; return 0 ;;
+    -h|--help) _usage; return 0 ;;
   esac
 
   local wanted=("$@")
