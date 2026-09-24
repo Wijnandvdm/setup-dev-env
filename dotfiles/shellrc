@@ -18,9 +18,38 @@ alias cd3='cd ../../..'
 alias cd4='cd ../../../..'
 
 # --- git -------------------------------------------------------------------
-# -sb: short status plus the branch/upstream line, so you can see at a glance
-# whether the branch is tracking anything and how far ahead/behind it is.
-alias gs='git status -sb'
+# `gs` is `git status -sb`: short status plus the branch/upstream line, so you
+# can see at a glance whether the branch is tracking anything and how far
+# ahead/behind it is.
+#
+# The one thing -sb drops is the "nothing to commit, working tree clean"
+# reassurance, because with no changes to list it prints the branch line and
+# stops. So when the tree is clean we say so on that same line - one line
+# instead of the four `git status` would print.
+#
+# The dirty case execs git directly rather than capturing it, so colour
+# survives (git only colours when writing to a terminal).
+#
+# The unalias is load-bearing. `gs` used to be an alias in this file, and a
+# shell that already ran the old version still has it defined. Bash expands
+# aliases while *parsing*, so it would turn the line below into
+# `git status -sb() {` - a syntax error that aborts the whole rc file from
+# that point on. Dropping the alias first (it runs before the next line is
+# parsed) makes re-sourcing safe. Same applies to any alias later promoted
+# to a function.
+unalias gs 2>/dev/null || true
+gs() {
+	git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+		git status -sb "$@"   # not a repo: let git print its own error
+		return $?
+	}
+
+	if [ -z "$(git status --porcelain 2>/dev/null)" ]; then
+		printf '%s — working tree clean\n' "$(git status -sb "$@" | head -n1)"
+	else
+		git status -sb "$@"
+	fi
+}
 alias ga.='git add .'
 alias gam='git commit -am'
 alias gp='git push'
