@@ -21,10 +21,14 @@ alias cd4='cd ../../../..'
 # -sb: short status plus the branch/upstream line, so you can see at a glance
 # whether the branch is tracking anything and how far ahead/behind it is.
 # On a clean tree this prints the branch line alone - no "working tree clean".
+alias gc='git clone'
+alias gco='git checkout'
+alias gnb='git checkout -b'
 alias gs='git status -sb'
 alias ga.='git add .'
 alias gam='git commit -am'
-alias gp='git push'
+alias gps='git push'
+alias gpl='git pull'
 alias gd='git diff'
 alias gl='git log --oneline --graph --decorate -20'
 
