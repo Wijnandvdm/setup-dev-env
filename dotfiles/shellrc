@@ -7,10 +7,10 @@
 # (ls --color, which BSD ls on macOS does not have) belongs in a per-shell
 # file instead, not here.
 #
-# `./install.sh dotfiles` COPIES this into ~/.bashrc / ~/.zshrc between marker
-# comments, rather than making them source this path - so the machine keeps
-# working after this repo is deleted. Re-running replaces the block in place,
-# so edit here and re-run; anything outside the markers is left alone.
+# `bash install.sh dotfiles` COPIES this into ~/.bashrc / ~/.zshrc between
+# marker comments, rather than making them source this path - so the machine
+# keeps working after this repo is deleted. Re-running replaces the block in
+# place, so edit here and re-run; anything outside the markers is left alone.
 
 # --- navigation ------------------------------------------------------------
 alias cd2='cd ../..'

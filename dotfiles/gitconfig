@@ -1,9 +1,9 @@
 # Shared git defaults for all my machines.
 #
-# `./install.sh git` COPIES this into the TOP of ~/.gitconfig between marker
-# comments, rather than making it an [include] of this path - so the machine
-# keeps working after this repo is deleted. Re-running replaces the block in
-# place; anything outside the markers is left alone.
+# `bash install.sh git` COPIES this into the TOP of ~/.gitconfig between
+# marker comments, rather than making it an [include] of this path - so the
+# machine keeps working after this repo is deleted. Re-running replaces the
+# block in place; anything outside the markers is left alone.
 #
 # Top placement is deliberate: git applies config in the order it reads it and
 # the last value wins, so anything in ~/.gitconfig BELOW the block overrides

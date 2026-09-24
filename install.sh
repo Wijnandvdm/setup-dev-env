@@ -2,11 +2,11 @@
 #
 # install.sh - install my dev tools on whatever machine this is.
 #
-#   ./install.sh                 # do everything
-#   ./install.sh uv pre-commit   # only the named targets
-#   ./install.sh dotfiles        # copy dotfiles/shellrc into your shell rc
-#   source ./install.sh dotfiles # ...and make the aliases live in this shell
-#   ./install.sh --list          # show what is present and what is missing
+#   bash install.sh                 # do everything
+#   bash install.sh uv pre-commit   # only the named targets
+#   bash install.sh dotfiles        # copy dotfiles/shellrc into your shell rc
+#   source ./install.sh dotfiles    # ...and make the aliases live in this shell
+#   bash install.sh --list          # show what is present and what is missing
 #
 # Targets: git, uv, pre-commit, docker, dotfiles
 # Minimum versions are set in versions.conf.
@@ -18,9 +18,9 @@
 # Executed (./install.sh) or sourced (source ./install.sh)?
 #
 # A script cannot change the shell that launched it - it runs in a child
-# process that exits - so `./install.sh dotfiles` can never make aliases live
-# in your current terminal. Sourcing runs everything in THIS shell instead, so
-# the rc reload at the end of the dotfiles step actually takes effect.
+# process that exits - so `bash install.sh dotfiles` can never make aliases
+# live in your current terminal. Sourcing runs everything in THIS shell
+# instead, so the rc reload at the end of the dotfiles step actually happens.
 #
 # Strict mode is therefore only switched on when executed: turning on
 # `set -e` in someone's interactive shell would close their terminal on the
@@ -43,7 +43,7 @@ source "$_here/lib/detect-machine.sh"
 source "$_here/versions.conf"
 
 TOOLS=(git uv pre-commit docker)      # things we check for with `have`
-TARGETS=("${TOOLS[@]}" dotfiles)      # everything ./install.sh can do
+TARGETS=("${TOOLS[@]}" dotfiles)      # everything bash install.sh can do
 
 # ---------------------------------------------------------------------------
 # output
@@ -227,7 +227,7 @@ install_pre_commit() {
   elif [ "$DEV_PKG" = brew ]; then
     brew install pre-commit
   else
-    warn "uv not found; install uv first (./install.sh uv)"
+    warn "uv not found; install uv first (bash install.sh uv)"
     return 1
   fi
   ok "pre-commit installed"
