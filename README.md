@@ -45,3 +45,7 @@ dotfiles/gitconfig      git defaults, each one documented
 
 Keep `shellrc` portable — aliases and POSIX-ish functions only, or it breaks
 the other shell. `pre-commit run --all-files` runs shellcheck over the lot.
+
+
+## TODOS:
+- Create a usage function for each thing, like gitcommands which tells me what git commands do what in a fancy colored clear way
