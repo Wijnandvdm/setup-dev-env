@@ -14,7 +14,8 @@ bash install.sh                 # everything
 source ./install.sh dotfiles    # ...and make the aliases live in this shell
 ```
 
-Then delete the repo if you like — nothing points back at it.
+Then delete the repo if you like — nothing points back at it. Run `commands`
+in a shell for a colour cheatsheet of every alias.
 
 `bash install.sh git uv` runs only those targets, `bash install.sh --list`
 shows what is present. Targets: `git` (install/upgrade, profile, identity),
@@ -45,7 +46,3 @@ dotfiles/gitconfig      git defaults, each one documented
 
 Keep `shellrc` portable — aliases and POSIX-ish functions only, or it breaks
 the other shell. `pre-commit run --all-files` runs shellcheck over the lot.
-
-
-## TODOS:
-- Create a usage function for each thing, like gitcommands which tells me what git commands do what in a fancy colored clear way
