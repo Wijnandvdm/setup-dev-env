@@ -352,9 +352,27 @@ _rc_targets() {
   printf '%s\n' ${found[@]+"${found[@]}"}
 }
 
+# Tab-completion for the git aliases needs the bash-completion package. git
+# ships the completion script itself, but not the loader that activates it -
+# without the package, `git checkout <TAB>` does nothing at all.
+_ensure_bash_completion() {
+  if [ "$DEV_PKG" = brew ]; then
+    # macOS defaults to zsh, which completes on its own; only bash needs this.
+    [ "${SHELL##*/}" = bash ] && brew install bash-completion@2
+    return 0
+  fi
+  [ "$DEV_OS" = linux ] || return 0
+  [ -r /usr/share/bash-completion/bash_completion ] && return 0
+
+  step "Installing bash-completion (git alias tab-completion needs it)"
+  pkg_install bash-completion
+}
+
 install_dotfiles() {
   local src="$_here/dotfiles/shellrc"
   [ -f "$src" ] || { warn "not found: $src"; return 1; }
+
+  _ensure_bash_completion
 
   step "Copying dotfiles/shellrc into your shell rc files"
   local rc

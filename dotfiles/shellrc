@@ -12,29 +12,29 @@
 # keeps working after this repo is deleted. Re-running replaces the block in
 # place, so edit here and re-run; anything outside the markers is left alone.
 
+# The trailing comment on each alias is its description: `commands` parses
+# them straight back out, so this is the only place to write one down.
+
 # --- navigation ------------------------------------------------------------
-alias cd2='cd ../..'
-alias cd3='cd ../../..'
-alias cd4='cd ../../../..'
+alias cd2='cd ../..'      # up 2 directories
+alias cd3='cd ../../..'   # up 3 directories
+alias cd4='cd ../../../..'  # up 4 directories
 
 # --- git -------------------------------------------------------------------
-# -sb: short status plus the branch/upstream line, so you can see at a glance
-# whether the branch is tracking anything and how far ahead/behind it is.
-# On a clean tree this prints the branch line alone - no "working tree clean".
-alias gc='git clone'
-alias gco='git checkout'
-alias gnb='git checkout -b'
-alias gs='git status -sb'
-alias ga.='git add .'
-alias gam='git commit -am'
-alias gps='git push'
-alias gpl='git pull'
-alias gd='git diff'
-alias gl='git log --oneline --graph --decorate -20'
+alias gc='git clone'      # clone a repo
+alias gco='git checkout'  # switch to an existing branch
+alias gnb='git checkout -b'  # create a branch and switch to it
+alias gs='git status -sb'  # short status + branch/upstream line
+alias ga.='git add .'     # stage everything under cwd
+alias gam='git commit -am'  # commit all tracked changes, needs a message
+alias gps='git push'      # push; sets upstream itself on a new branch
+alias gpl='git pull'      # pull; refuses to invent a merge commit
+alias gd='git diff'       # diff of unstaged changes
+alias gl='git log --oneline --graph --decorate -20'  # last 20 commits as a graph
 
 # --- docker ----------------------------------------------------------------
-alias dps='docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
-alias dc='docker compose'
+alias dps='docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'  # running containers
+alias dc='docker compose'  # compose subcommands: up, down, logs, ...
 
 # --- reload ----------------------------------------------------------------
 # `src` re-sources the rc file of the shell you are actually in: ~/.bashrc
@@ -54,7 +54,7 @@ alias dc='docker compose'
 # Re-running is safe: this block only defines aliases and functions, so
 # sourcing it again simply redefines them. (True of what is in here; an rc
 # that *appends* to PATH will duplicate entries each time it is re-sourced.)
-src() {
+src() {  # re-source this shell's rc (~/.bashrc or ~/.zshrc)
 	local rc=""
 	if [ -n "${ZSH_VERSION:-}" ]; then
 		rc="$HOME/.zshrc"
@@ -69,62 +69,223 @@ src() {
 	return 0
 }
 
+# --- completion -------------------------------------------------------------
+# Branch and ref completion for the git aliases.
+#
+# bash-completion registers completions against a command NAME, so `git
+# checkout <TAB>` completes branches while `gco <TAB>` does nothing - bash has
+# no idea gco means git. __git_complete, shipped with git's own completion,
+# points an alias at the completion of the command it stands for.
+#
+# git's completion is loaded lazily on first use, so it has to be nudged in
+# first; at rc time __git_complete does not exist yet.
+#
+# Needs the bash-completion package: git ships the completion script but not
+# the loader that activates it. `bash install.sh dotfiles` installs it.
+if [ -n "${BASH_VERSION:-}" ]; then
+	if ! command -v __git_complete >/dev/null 2>&1; then
+		if command -v _completion_loader >/dev/null 2>&1; then
+			_completion_loader git >/dev/null 2>&1
+		elif [ -r /usr/share/bash-completion/completions/git ]; then
+			. /usr/share/bash-completion/completions/git
+		fi
+	fi
+
+	if command -v __git_complete >/dev/null 2>&1; then
+		__git_complete gc  _git_clone
+		__git_complete gco _git_checkout
+		__git_complete gnb _git_checkout
+		__git_complete gs  _git_status
+		__git_complete gam _git_commit
+		__git_complete gps _git_push
+		__git_complete gpl _git_pull
+		__git_complete gd  _git_diff
+		__git_complete gl  _git_log
+	fi
+elif [ -n "${ZSH_VERSION:-}" ]; then
+	# zsh maps an alias onto a subcommand's completion with the =service form.
+	if command -v compdef >/dev/null 2>&1; then
+		compdef gc=git-clone      2>/dev/null
+		compdef gco=git-checkout  2>/dev/null
+		compdef gnb=git-checkout  2>/dev/null
+		compdef gs=git-status     2>/dev/null
+		compdef gam=git-commit    2>/dev/null
+		compdef gps=git-push      2>/dev/null
+		compdef gpl=git-pull      2>/dev/null
+		compdef gd=git-diff       2>/dev/null
+		compdef gl=git-log        2>/dev/null
+	fi
+fi
 
 # --- cheatsheets ------------------------------------------------------------
 # `commands` prints every group; `gitcommands`, `dockercommands`, `navcommands`
-# and `shellcommands` print one. Handy when you half-remember an alias.
+# and `shellcommands` print one.
 #
-# Colour is decided per call, not when this file is read, so piping into less
-# or grep gives you clean text instead of escape codes.
+# Everything is read back out of the rc file this block was copied into, so
+# there is no second list to maintain:
+#   - aliases come from the `alias NAME='...'  # description` lines above
+#   - functions opt in by putting a `#` comment after their opening brace
+# Add an alias with a comment and it shows up here; no edit down here needed.
 #
-# _cheat takes a title then name/description pairs. Pairs rather than a
-# heredoc because `<<-` only strips leading TABS, which silently breaks the
-# moment someone reindents this file with spaces.
+# Deliberately not a YAML file: that would need a parser in shell, and worse,
+# a file present at runtime - the point of copying this block into your rc is
+# that the repo can be deleted afterwards.
+
+# The rc file we live in, which is also the file we parse.
+_shell_rc() {
+	if [ -n "${ZSH_VERSION:-}" ]; then
+		printf '%s/.zshrc' "$HOME"
+	elif [ -n "${BASH_VERSION:-}" ]; then
+		printf '%s/.bashrc' "$HOME"
+	fi
+}
+
+# Only the lines between our own markers. Without this the listing also picks
+# up the distro's stock aliases (ll, la, alert on Ubuntu), which are not ours
+# to document and can collide with ours. Falls back to the whole file if the
+# markers are absent, e.g. when this file is sourced directly.
+_cheat_source() {
+	local rc out
+	rc="$(_shell_rc)"
+	[ -n "$rc" ] && [ -r "$rc" ] || return 0
+	out="$(sed -n '/^# >>> setup-dev-env: dotfiles\/shellrc >>>$/,/^# <<< setup-dev-env: dotfiles\/shellrc <<<$/p' "$rc")"
+	if [ -n "$out" ]; then
+		printf '%s\n' "$out"
+	else
+		cat "$rc"
+	fi
+}
+
+# Rows of: name <TAB> expansion <TAB> description
+# First expression catches annotated aliases, second the unannotated ones so
+# they are still listed, just without a note.
+# Rows of: name <TAB> expansion <TAB> description <TAB> section
+#
+# awk rather than sed because this has to remember which `# --- section ---`
+# heading it is under. It finds the closing quote by scanning from the end, so
+# both alias x='y' and alias x="y" work, and a value may contain the other
+# quote. \047 / \042 are ' and " - written as escapes so the awk program can
+# stay inside single quotes.
+#
+# An empty description becomes a single space: IFS=tab is whitespace, so a run
+# of tabs collapses and an empty field would shift every later field left.
+_cheat_alias_rows() {
+	_cheat_source | awk '
+		/^# --- / {
+			section = $0
+			sub(/^# --- /, "", section)
+			sub(/[ -]+$/, "", section)
+			next
+		}
+		/^alias / {
+			line = substr($0, 7)
+			eq = index(line, "=")
+			if (eq == 0) next
+			name = substr(line, 1, eq - 1)
+			rest = substr(line, eq + 1)
+			q = substr(rest, 1, 1)
+			if (q != "\047" && q != "\042") next
+			last = 0
+			for (i = length(rest); i > 1; i--)
+				if (substr(rest, i, 1) == q) { last = i; break }
+			if (last <= 1) next
+			val = substr(rest, 2, last - 2)
+			tail = substr(rest, last + 1)
+			desc = " "
+			h = index(tail, "#")
+			if (h > 0) {
+				desc = substr(tail, h + 1)
+				sub(/^[ \t]+/, "", desc)
+			}
+			printf "%s\t%s\t%s\t%s\n", name, val, desc, section
+		}
+	'
+}
+
+# Functions are opt-in: only those with a trailing comment on the `() {` line
+# show up, which keeps the private _cheat_* helpers out of the listing. They
+# have no expansion and no section, so those fields stay empty.
+_cheat_fn_rows() {
+	_cheat_source | sed -n "s/^\([a-z][a-z0-9_]*\)() *{ *# *\(.*\)$/\1	 	\2/p"
+}
+
+# Section headings that own a group. An alias under one of these is filed
+# there whatever it expands to; anything else falls back to its expansion.
+#
+# Adding a heading here is not enough to make a new group appear - it also
+# needs its own <name>commands() below, and a line in commands(). Until then
+# aliases under an unknown heading land in "other".
+_cheat_known_section() {
+	case "$1" in
+		navigation|git|docker) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+# Does <title> claim this row? Section wins, expansion is the fallback - so an
+# alias put under `# --- git ---` lands in git even if it runs something else,
+# while one appended anywhere still finds its group by what it runs.
+_cheat_in_group() {
+	local title="$1" section="$2" val="$3"
+	if _cheat_known_section "$section"; then
+		[ "$section" = "$title" ]
+		return $?
+	fi
+	case "$title" in
+		navigation) case "$val" in 'cd '*)   return 0 ;; esac ;;
+		git)        case "$val" in 'git '*)  return 0 ;; esac ;;
+		docker)     case "$val" in docker*)  return 0 ;; esac ;;
+	esac
+	return 1
+}
+
+# "other" is whatever no real group claims, so nothing can go missing.
+_cheat_is_other() {
+	local section="$2" val="$3"
+	_cheat_known_section "$section" && return 1
+	case "$val" in 'cd '*|'git '*|docker*) return 1 ;; esac
+	return 0
+}
+
+_cheat_always() { return 0; }
+
+# _cheat <title> <selector> <rows-producer>
+#
+# The selector is called as `selector <title> <section> <expansion>` and
+# returns 0 to keep the row.
+#
+# Rows are built up first so a group with nothing in it prints no heading at
+# all. The colour test runs before that, while stdout is still the terminal;
+# inside the command substitution it would always look like a pipe.
 _cheat() {
-	local bold="" key="" off=""
+	local title="$1" pick="$2" rows="$3"
+	local bold="" key="" dim="" off="" body name val desc section shown
 	if [ -t 1 ]; then
-		bold=$'\033[1m'; key=$'\033[36m'; off=$'\033[0m'
+		bold=$'\033[1m'; key=$'\033[36m'; dim=$'\033[2m'; off=$'\033[0m'
 	fi
 
-	printf '%s%s%s\n' "$bold" "$1" "$off"
-	shift
-	while [ "$#" -ge 2 ]; do
-		printf '  %s%-5s%s %s\n' "$key" "$1" "$off" "$2"
-		shift 2
-	done
+	body="$("$rows" | sort | while IFS=$'\t' read -r name val desc section; do
+		"$pick" "$title" "$section" "$val" || continue
+		shown="$val"
+		[ "${#shown}" -gt 26 ] && shown="${shown:0:25}…"
+		printf '  %s%-8s%s %-26s %s%s%s\n' \
+			"$key" "$name" "$off" "$shown" "$dim" "$desc" "$off"
+	done)"
+
+	[ -n "$body" ] || return 0
+	printf '%s%s%s\n%s\n\n' "$bold" "$title" "$off" "$body"
 }
 
-navcommands() {
-	_cheat "navigation" \
-		cd2 "up 2 directories" \
-		cd3 "up 3 directories" \
-		cd4 "up 4 directories"
-}
+navcommands()    { _cheat "navigation" _cheat_in_group _cheat_alias_rows; }
+gitcommands()    { _cheat "git"        _cheat_in_group _cheat_alias_rows; }
+dockercommands() { _cheat "docker"     _cheat_in_group _cheat_alias_rows; }
+othercommands()  { _cheat "other"      _cheat_is_other _cheat_alias_rows; }
+shellcommands()  { _cheat "shell"      _cheat_always   _cheat_fn_rows; }
 
-gitcommands() {
-	_cheat "git" \
-		gs   "status, short + branch/upstream line (git status -sb)" \
-		gd   "diff of unstaged changes (git diff)" \
-		gl   "last 20 commits as a graph (git log --oneline --graph)" \
-		"ga." "stage everything under cwd (git add .)" \
-		gam  "commit all tracked changes with a message (git commit -am)" \
-		gp   "push; sets upstream by itself on a new branch (git push)"
-}
-
-dockercommands() {
-	_cheat "docker" \
-		dps "running containers: name, status, ports (docker ps)" \
-		dc  "docker compose"
-}
-
-shellcommands() {
-	_cheat "shell" \
-		src "re-source this shell's rc (~/.bashrc or ~/.zshrc)"
-}
-
-commands() {
-	navcommands; echo
-	gitcommands; echo
-	dockercommands; echo
+commands() {  # this cheatsheet
+	navcommands
+	gitcommands
+	dockercommands
+	othercommands
 	shellcommands
 }
