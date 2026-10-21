@@ -36,6 +36,13 @@ alias gl='git log --oneline --graph --decorate -20'  # last 20 commits as a grap
 alias dps='docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'  # running containers
 alias dc='docker compose'  # compose subcommands: up, down, logs, ...
 
+# --- network ----------------------------------------------------------------
+# ifconfig.me answers with the bare IP and no trailing newline, so `&& echo`
+# adds one - without it your next prompt starts on the same line as the IP.
+# -f fails loudly on an HTTP error instead of printing an error page as if it
+# were your address; -sS hides the progress meter but keeps real errors.
+alias myip='curl -fsS ifconfig.me && echo'  # public IP, via ifconfig.me
+
 # --- reload ----------------------------------------------------------------
 # `src` re-sources the rc file of the shell you are actually in: ~/.bashrc
 # under bash (Ubuntu), ~/.zshrc under zsh (macOS). One command, both machines.
@@ -217,7 +224,7 @@ _cheat_fn_rows() {
 # aliases under an unknown heading land in "other".
 _cheat_known_section() {
 	case "$1" in
-		navigation|git|docker) return 0 ;;
+		navigation|git|docker|network) return 0 ;;
 		*) return 1 ;;
 	esac
 }
@@ -235,6 +242,7 @@ _cheat_in_group() {
 		navigation) case "$val" in 'cd '*)   return 0 ;; esac ;;
 		git)        case "$val" in 'git '*)  return 0 ;; esac ;;
 		docker)     case "$val" in docker*)  return 0 ;; esac ;;
+		network)    case "$val" in curl*|dig*|ping*) return 0 ;; esac ;;
 	esac
 	return 1
 }
@@ -243,7 +251,7 @@ _cheat_in_group() {
 _cheat_is_other() {
 	local section="$2" val="$3"
 	_cheat_known_section "$section" && return 1
-	case "$val" in 'cd '*|'git '*|docker*) return 1 ;; esac
+	case "$val" in 'cd '*|'git '*|docker*|curl*|dig*|ping*) return 1 ;; esac
 	return 0
 }
 
@@ -279,6 +287,7 @@ _cheat() {
 navcommands()    { _cheat "navigation" _cheat_in_group _cheat_alias_rows; }
 gitcommands()    { _cheat "git"        _cheat_in_group _cheat_alias_rows; }
 dockercommands() { _cheat "docker"     _cheat_in_group _cheat_alias_rows; }
+netcommands()    { _cheat "network"    _cheat_in_group _cheat_alias_rows; }
 othercommands()  { _cheat "other"      _cheat_is_other _cheat_alias_rows; }
 shellcommands()  { _cheat "shell"      _cheat_always   _cheat_fn_rows; }
 
@@ -286,6 +295,7 @@ commands() {  # this cheatsheet
 	navcommands
 	gitcommands
 	dockercommands
+	netcommands
 	othercommands
 	shellcommands
 }

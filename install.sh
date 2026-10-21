@@ -195,6 +195,7 @@ install_uv() {
   if [ "$DEV_PKG" = brew ]; then
     brew install uv
   else
+    _ensure_curl
     # Astral's official installer; drops uv in ~/.local/bin
     curl -LsSf https://astral.sh/uv/install.sh | sh
     _ensure_local_bin_on_path
@@ -352,6 +353,15 @@ _rc_targets() {
   printf '%s\n' ${found[@]+"${found[@]}"}
 }
 
+# curl is assumed by more than one step here: Astral's uv installer is piped
+# through it, Docker's apt key is fetched with it, and the myip alias in
+# dotfiles/shellrc is built on it. Most images ship it, but minimal ones do not.
+_ensure_curl() {
+  have curl && return 0
+  step "Installing curl (needed by uv, docker and the myip alias)"
+  pkg_install curl
+}
+
 # Tab-completion for the git aliases needs the bash-completion package. git
 # ships the completion script itself, but not the loader that activates it -
 # without the package, `git checkout <TAB>` does nothing at all.
@@ -372,6 +382,7 @@ install_dotfiles() {
   local src="$_here/dotfiles/shellrc"
   [ -f "$src" ] || { warn "not found: $src"; return 1; }
 
+  _ensure_curl
   _ensure_bash_completion
 
   step "Copying dotfiles/shellrc into your shell rc files"
